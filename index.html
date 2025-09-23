@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Peer Tutoring Hub</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Alpine.js for simple interactivity -->
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <!-- QR code generator -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
+  <style>
+    .glass { backdrop-filter: blur(10px); background: rgba(255,255,255,0.7); }
+    .card { @apply rounded-2xl shadow-lg p-5 bg-white; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 text-slate-800">
+  <div class="max-w-6xl mx-auto p-6" x-data="tutoringApp()" x-init="init()">
+    <!-- Header -->
+    <header class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl md:text-3xl font-bold">Peer Tutoring Hub</h1>
+      <nav class="flex gap-2">
+        <button class="px-4 py-2 rounded-full bg-indigo-600 text-white hover:bg-indigo-700" @click="activeTab='find'">Find a Tutor</button>
+        <button class="px-4 py-2 rounded-full bg-slate-800 text-white hover:bg-slate-900" @click="activeTab='schedule'">Schedule</button>
+        <button class="px-4 py-2 rounded-full bg-slate-200 hover:bg-slate-300" @click="activeTab='admin'">Admin</button>
+      </nav>
+    </header>
+
+    <!-- Banner -->
+    <section class="glass rounded-2xl p-5 md:p-6 mb-6 border border-slate-100">
+      <p class="text-slate-700"><strong>How it works:</strong> Browse tutors by subject → book a slot → get a confirmation code. At the session, scan the QR to check in. No shows are auto‑flagged so slots get reassigned.</p>
+    </section>
+
+    <!-- FIND A TUTOR TAB -->
+    <section x-show="activeTab==='find'" x-cloak>
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="card">
+          <h2 class="font-semibold text-lg mb-3">Filters</h2>
+          <label class="block text-sm mb-1">Subject</label>
+          <select class="w-full border rounded-lg p-2 mb-3" x-model="filters.subject">
+            <option value="">All</option>
+            <template x-for="s in subjects" :key="s"><option :value="s" x-text="s"></option></template>
+          </select>
+
+          <label class="block text-sm mb-1">Day</label>
+          <select class="w-full border rounded-lg p-2 mb-3" x-model="filters.day">
+            <option value="">Any</option>
+            <template x-for="d in days" :key="d"><option :value="d" x-text="d"></option></template>
+          </select>
+
+          <label class="block text-sm mb-1">Time</label>
+          <select class="w-full border rounded-lg p-2" x-model="filters.time">
+            <option value="">Any</option>
+            <template x-for="t in times" :key="t"><option :value="t" x-text="t"></option></template>
+          </select>
+
+          <button class="mt-4 w-full px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200" @click="clearFilters()">Clear</button>
+        </div>
+
+        <div class="md:col-span-2 card">
+          <h2 class="font-semibold text-lg mb-3">Available tutors</h2>
+          <template x-if="filteredSlots().length===0">
+            <p class="text-slate-500">No matches. Try changing filters.</p>
+          </template>
+
+          <div class="grid md:grid-cols-2 gap-4" x-show="filteredSlots().length>0">
+            <template x-for="slot in filteredSlots()" :key="slot.id">
+              <div class="border rounded-xl p-4 hover:shadow-md">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="font-semibold" x-text="slot.tutor"></p>
+                    <p class="text-sm text-slate-600" x-text="slot.subject.join(', ')"></p>
+                  </div>
+                  <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">Open</span>
+                </div>
+                <div class="mt-2 text-sm text-slate-700" x-text="slot.day + ' · ' + slot.time + ' · ' + slot.room"></div>
+                <div class="mt-3 flex gap-2">
+                  <button class="px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700" @click="openBook(slot)">Book</button>
+                  <button class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200" @click="viewQR(slot)">QR</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCHEDULE TAB -->
+    <section x-show="activeTab==='schedule'" x-cloak>
+      <div class="card">
+        <h2 class="font-semibold text-lg mb-4">Weekly schedule</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-separate" style="border-spacing: 0 .5rem;">
+            <thead>
+              <tr>
+                <th class="p-2 text-slate-500">Time</th>
+                <template x-for="d in days" :key="d"><th class="p-2 text-slate-500" x-text="d"></th></template>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="t in times" :key="t">
+                <tr>
+                  <td class="p-2 font-medium text-slate-700" x-text="t"></td>
+                  <template x-for="d in days" :key="d">
+                    <td class="p-2">
+                      <template x-for="slot in slotsFor(d,t)" :key="slot.id">
+                        <div class="mb-2 rounded-xl border p-2 flex items-center justify-between">
+                          <div>
+                            <div class="font-semibold" x-text="slot.tutor"></div>
+                            <div class="text-xs text-slate-600" x-text="slot.subject.join(', ')"></div>
+                            <div class="text-xs text-slate-500" x-text="slot.room"></div>
+                          </div>
+                          <button class="text-xs px-2 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700" @click="openBook(slot)">Book</button>
+                        </div>
+                      </template>
+                    </td>
+                  </template>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADMIN TAB -->
+    <section x-show="activeTab==='admin'" x-cloak>
+      <div class="card">
+        <div class="flex items-center justify-between">
+          <h2 class="font-semibold text-lg">Admin panel</h2>
+          <input class="border rounded-lg p-2 text-sm" type="password" placeholder="Passcode" x-model="adminPass" />
+        </div>
+        <p class="text-slate-600 text-sm mt-2">Use this to add tutors/slots, mark attendance, and export CSV. (Front‑end only; for production, connect to Google Sheets/App Script.)</p>
+
+        <div x-show="isAdmin()" class="mt-4 grid md:grid-cols-3 gap-4">
+          <div>
+            <h3 class="font-medium mb-2">Add tutor</h3>
+            <input class="w-full border rounded-lg p-2 mb-2" placeholder="Tutor name" x-model="newTutor.name" />
+            <input class="w-full border rounded-lg p-2 mb-2" placeholder="Subjects (comma)" x-model="newTutor.subjects" />
+            <button class="w-full px-3 py-2 rounded-lg bg-slate-800 text-white" @click="addTutor()">Add</button>
+          </div>
+
+          <div>
+            <h3 class="font-medium mb-2">Add slot</h3>
+            <select class="w-full border rounded-lg p-2 mb-2" x-model.number="newSlot.tutorId">
+              <option value="">Tutor…</option>
+              <template x-for="t in tutors" :key="t.id"><option :value="t.id" x-text="t.name"></option></template>
+            </select>
+            <div class="grid grid-cols-2 gap-2 mb-2">
+              <select class="border rounded-lg p-2" x-model="newSlot.day">
+                <option value="">Day…</option>
+                <template x-for="d in days" :key="d"><option :value="d" x-text="d"></option></template>
+              </select>
+              <select class="border rounded-lg p-2" x-model="newSlot.time">
+                <option value="">Time…</option>
+                <template x-for="t in times" :key="t"><option :value="t" x-text="t"></option></template>
+              </select>
+            </div>
+            <input class="w-full border rounded-lg p-2 mb-2" placeholder="Room (e.g., Library BR-2)" x-model="newSlot.room" />
+            <button class="w-full px-3 py-2 rounded-lg bg-indigo-600 text-white" @click="addSlot()">Add slot</button>
+          </div>
+
+          <div>
+            <h3 class="font-medium mb-2">Export</h3>
+            <button class="w-full px-3 py-2 rounded-lg bg-emerald-600 text-white" @click="exportCSV()">Export CSV</button>
+            <p class="text-xs text-slate-500 mt-2">Includes tutors, slots, and attendance records.</p>
+          </div>
+        </div>
+
+        <div x-show="isAdmin()" class="mt-6">
+          <h3 class="font-medium mb-2">Attendance / No‑shows</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="text-sm text-slate-500">
+                  <th class="p-2">When</th>
+                  <th class="p-2">Tutor</th>
+                  <th class="p-2">Student</th>
+                  <th class="p-2">Code</th>
+                  <th class="p-2">Status</th>
+                  <th class="p-2">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="r in bookings" :key="r.code">
+                  <tr class="border-t">
+                    <td class="p-2 text-sm" x-text="r.day + ' ' + r.time"></td>
+                    <td class="p-2 text-sm" x-text="r.tutor"></td>
+                    <td class="p-2 text-sm" x-text="r.student"></td>
+                    <td class="p-2 text-xs font-mono" x-text="r.code"></td>
+                    <td class="p-2 text-sm">
+                      <span class="px-2 py-1 rounded-full text-xs" :class="{'bg-emerald-100 text-emerald-700': r.status==='attended', 'bg-rose-100 text-rose-700': r.status==='no-show', 'bg-slate-100 text-slate-700': r.status==='booked'}" x-text="r.status"></span>
+                    </td>
+                    <td class="p-2">
+                      <button class="text-xs px-2 py-1 rounded bg-emerald-600 text-white mr-1" @click="setStatus(r,'attended')">Attended</button>
+                      <button class="text-xs px-2 py-1 rounded bg-rose-600 text-white" @click="setStatus(r,'no-show')">No‑show</button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BOOKING MODAL -->
+    <div x-show="showBook" x-cloak class="fixed inset-0 bg-black/30 flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <h3 class="text-lg font-semibold">Book session</h3>
+        <p class="text-sm text-slate-600 mt-1" x-text="bookSlot? (bookSlot.tutor + ' · ' + bookSlot.subject.join(', ') + ' · ' + bookSlot.day + ' ' + bookSlot.time) : ''"></p>
+        <input class="mt-4 w-full border rounded-lg p-2" placeholder="Your name" x-model="studentName" />
+        <input class="mt-2 w-full border rounded-lg p-2" placeholder="Email (optional for reminder)" x-model="studentEmail" />
+        <div class="flex items-center gap-2 mt-3">
+          <input type="checkbox" id="emailme" x-model="emailOptIn">
+          <label for="emailme" class="text-sm text-slate-600">Email me the confirmation code</label>
+        </div>
+        <div class="mt-4 flex gap-2 justify-end">
+          <button class="px-3 py-2 rounded-lg bg-slate-100" @click="closeBook()">Cancel</button>
+          <button class="px-3 py-2 rounded-lg bg-indigo-600 text-white" @click="confirmBook()">Confirm</button>
+        </div>
+        <template x-if="confirmation.code">
+          <div class="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+            <p class="text-emerald-800 text-sm">Booked! Show this code at check‑in:</p>
+            <p class="text-lg font-mono" x-text="confirmation.code"></p>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- QR MODAL -->
+    <div x-show="showQR" x-cloak class="fixed inset-0 bg-black/30 flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+        <h3 class="text-lg font-semibold">Check‑in QR</h3>
+        <p class="text-sm text-slate-600 mt-1" x-text="qrSlot? (qrSlot.tutor + ' · ' + qrSlot.day + ' ' + qrSlot.time) : ''"></p>
+        <div id="qrcode" class="mt-3 flex items-center justify-center"></div>
+        <div class="mt-4 flex justify-end">
+          <button class="px-3 py-2 rounded-lg bg-slate-800 text-white" @click="showQR=false">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="mt-10 text-center text-xs text-slate-500">© Peer Tutoring Hub. Front‑end MVP. Connect to Google Sheets/App Script for real email reminders & rosters.</footer>
+  </div>
+
+  <script>
+    function tutoringApp() {
+      return {
+        activeTab: 'find',
+        subjects: ['Math', 'Pre‑Calc', 'Chemistry', 'Physics', 'Biology', 'English'],
+        days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+        times: ['8:00‑8:30', '8:30‑9:00', 'Lunch', '3:10‑3:40', '3:40‑4:10'],
+        filters: { subject: '', day: '', time: '' },
+
+        tutors: [],
+        slots: [],
+        bookings: [],
+
+        // Admin
+        adminPass: '',
+        ADMIN_KEY: 'handsworth2025', // change this
+        newTutor: { name: '', subjects: '' },
+        newSlot: { tutorId: '', day: '', time: '', room: '' },
+
+        // Booking modal
+        showBook: false,
+        bookSlot: null,
+        studentName: '',
+        studentEmail: '',
+        emailOptIn: true,
+        confirmation: {},
+
+        // QR modal
+        showQR: false,
+        qrSlot: null,
+
+        init() {
+          // Load from localStorage or seed with sample data
+          const stored = JSON.parse(localStorage.getItem('peerTutoringData') || '{}');
+          this.tutors = stored.tutors || [
+            { id: 1, name: 'Alice Chen', subjects: ['Math','Pre‑Calc'] },
+            { id: 2, name: 'Ravi Patel', subjects: ['Chemistry','Physics'] },
+            { id: 3, name: 'Sara Kim', subjects: ['Biology','Chemistry'] },
+            { id: 4, name: 'Leo Martinez', subjects: ['English','Biology'] }
+          ];
+          this.slots = stored.slots || [
+            { id: 's1', tutorId: 1, tutor: 'Alice Chen', subject: ['Math','Pre‑Calc'], day: 'Mon', time: 'Lunch', room: 'Library BR‑2' },
+            { id: 's2', tutorId: 2, tutor: 'Ravi Patel', subject: ['Chemistry','Physics'], day: 'Tue', time: '3:10‑3:40', room: 'Room 204' },
+            { id: 's3', tutorId: 3, tutor: 'Sara Kim', subject: ['Biology','Chemistry'], day: 'Thu', time: 'Lunch', room: 'Library BR‑1' },
+            { id: 's4', tutorId: 4, tutor: 'Leo Martinez', subject: ['English'], day: 'Fri', time: '3:40‑4:10', room: 'Room 110' }
+          ];
+          this.bookings = stored.bookings || [];
+          this.persist();
+        },
+
+        persist() {
+          localStorage.setItem('peerTutoringData', JSON.stringify({ tutors: this.tutors, slots: this.slots, bookings: this.bookings }));
+        },
+
+        clearFilters(){ this.filters={subject:'',day:'',time:''}; },
+
+        filteredSlots(){
+          return this.slots.filter(s =>
+            (!this.filters.subject || s.subject.includes(this.filters.subject)) &&
+            (!this.filters.day || s.day===this.filters.day) &&
+            (!this.filters.time || s.time===this.filters.time)
+          );
+        },
+
+        slotsFor(d,t){ return this.slots.filter(s => s.day===d && s.time===t); },
+
+        openBook(slot){ this.bookSlot = slot; this.showBook = true; this.confirmation = {}; },
+        closeBook(){ this.showBook=false; this.bookSlot=null; this.studentName=''; this.studentEmail=''; this.emailOptIn=true; this.confirmation={}; },
+        confirmBook(){
+          if(!this.studentName) { alert('Enter your name.'); return; }
+          const code = 'H' + Math.random().toString(36).slice(2,8).toUpperCase();
+          const rec = { code, student: this.studentName, email: this.studentEmail, tutor: this.bookSlot.tutor, day: this.bookSlot.day, time: this.bookSlot.time, status: 'booked' };
+          this.bookings.push(rec);
+          this.persist();
+          this.confirmation = { code };
+          // For real email: connect this to Google Apps Script Web App endpoint.
+        },
+
+        viewQR(slot){
+          this.qrSlot = slot; this.showQR = true; 
+          this.$nextTick(() => {
+            const el = document.getElementById('qrcode');
+            el.innerHTML = '';
+            // Encode slot id + time for simple check‑in URL (front‑end demo)
+            const payload = JSON.stringify({ slot: slot.id, when: slot.day + ' ' + slot.time });
+            new QRCode(el, { text: payload, width: 192, height: 192 });
+          });
+        },
+
+        // Admin helpers
+        isAdmin(){ return this.adminPass === this.ADMIN_KEY; },
+        addTutor(){
+          if(!this.newTutor.name) return alert('Tutor name required');
+          const id = (this.tutors.at(-1)?.id || 0) + 1;
+          const subjects = this.newTutor.subjects.split(',').map(s=>s.trim()).filter(Boolean);
+          this.tutors.push({ id, name: this.newTutor.name, subjects });
+          this.newTutor = { name: '', subjects: '' };
+          this.persist();
+        },
+        addSlot(){
+          const t = this.tutors.find(tt=>tt.id==this.newSlot.tutorId);
+          if(!t || !this.newSlot.day || !this.newSlot.time || !this.newSlot.room) return alert('Complete all fields');
+          const id = 's' + (this.slots.length + 1);
+          this.slots.push({ id, tutorId: t.id, tutor: t.name, subject: t.subjects, day: this.newSlot.day, time: this.newSlot.time, room: this.newSlot.room });
+          this.newSlot = { tutorId:'', day:'', time:'', room:'' };
+          this.persist();
+        },
+        setStatus(r, status){ r.status = status; this.persist(); },
+        exportCSV(){
+          const rows = [];
+          rows.push(['Type','ID/Code','Tutor','Subjects','Day','Time','Room','Student','Email','Status']);
+          this.tutors.forEach(t=> rows.push(['tutor', t.id, t.name, t.subjects.join('|'), '', '', '', '', '', '']));
+          this.slots.forEach(s=> rows.push(['slot', s.id, s.tutor, s.subject.join('|'), s.day, s.time, s.room, '', '', '']));
+          this.bookings.forEach(b=> rows.push(['booking', b.code, b.tutor, '', b.day, b.time, '', b.student, b.email, b.status]));
+          const csv = rows.map(r=> r.map(v=> '"'+String(v).replaceAll('"','""')+'"').join(',')).join('\n');
+          const blob = new Blob([csv], {type:'text/csv'});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = 'peer_tutoring_export.csv'; a.click();
+          URL.revokeObjectURL(url);
+        }
+      }
+    }
+  </script>
+</body>
+</html>
