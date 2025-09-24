@@ -4,12 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Peer Tutoring Hub</title>
+  <!-- Tailwind via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Alpine.js for simple interactivity -->
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <!-- QR code generator -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
   <style>
     .glass { backdrop-filter: blur(10px); background: rgba(255,255,255,0.7); }
-    .chip { @apply inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 text-slate-700 text-xs; }
     .card { @apply rounded-2xl shadow-lg p-5 bg-white; }
   </style>
 </head>
@@ -129,45 +131,16 @@
           <h2 class="font-semibold text-lg">Admin panel</h2>
           <input class="border rounded-lg p-2 text-sm" type="password" placeholder="Passcode" x-model="adminPass" />
         </div>
-        <p class="text-slate-600 text-sm mt-2">Manage subjects, tutors, slots, attendance, and export CSV. (Front‑end only; connect to Google Sheets for production.)</p>
+        <p class="text-slate-600 text-sm mt-2">Use this to add tutors/slots, mark attendance, and export CSV. (Front‑end only; for production, connect to Google Sheets/App Script.)</p>
 
         <div x-show="isAdmin()" class="mt-4 grid md:grid-cols-3 gap-4">
-          <!-- SUBJECTS MANAGER -->
-          <div>
-            <h3 class="font-medium mb-2">Subjects</h3>
-            <div class="flex gap-2 mb-2">
-              <input class="flex-1 border rounded-lg p-2" placeholder="Add subject e.g. Social Studies" x-model="newSubject" @keydown.enter.prevent="addSubject()" />
-              <button class="px-3 py-2 rounded-lg bg-slate-800 text-white" @click="addSubject()">Add</button>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <template x-for="s in subjects" :key="s">
-                <span class="chip">
-                  <span x-text="s"></span>
-                  <button class="hover:text-rose-600" title="Remove" @click="removeSubject(s)">✕</button>
-                </span>
-              </template>
-            </div>
-          </div>
-
-          <!-- ADD TUTOR -->
           <div>
             <h3 class="font-medium mb-2">Add tutor</h3>
             <input class="w-full border rounded-lg p-2 mb-2" placeholder="Tutor name" x-model="newTutor.name" />
-            <div class="mb-2">
-              <p class="text-sm text-slate-600 mb-1">Subjects (select one or more)</p>
-              <div class="flex flex-wrap gap-2">
-                <template x-for="s in subjects" :key="'pick-'+s">
-                  <label class="chip cursor-pointer">
-                    <input class="mr-1" type="checkbox" :value="s" x-model="newTutor.subjectsPick">
-                    <span x-text="s"></span>
-                  </label>
-                </template>
-              </div>
-            </div>
+            <input class="w-full border rounded-lg p-2 mb-2" placeholder="Subjects (comma)" x-model="newTutor.subjects" />
             <button class="w-full px-3 py-2 rounded-lg bg-slate-800 text-white" @click="addTutor()">Add</button>
           </div>
 
-          <!-- ADD SLOT -->
           <div>
             <h3 class="font-medium mb-2">Add slot</h3>
             <select class="w-full border rounded-lg p-2 mb-2" x-model.number="newSlot.tutorId">
@@ -184,92 +157,49 @@
                 <template x-for="t in times" :key="t"><option :value="t" x-text="t"></option></template>
               </select>
             </div>
-            <input class="w-full border rounded-lg p-2 mb-2" placeholder="Room (e.g., Library BR‑2)" x-model="newSlot.room" />
+            <input class="w-full border rounded-lg p-2 mb-2" placeholder="Room (e.g., Library BR-2)" x-model="newSlot.room" />
             <button class="w-full px-3 py-2 rounded-lg bg-indigo-600 text-white" @click="addSlot()">Add slot</button>
           </div>
-        </div>
 
-        <!-- TUTORS MANAGER -->
-        <div x-show="isAdmin()" class="mt-6 card">
-          <h3 class="font-medium mb-3">Tutors</h3>
-          <template x-if="tutors.length===0"><p class="text-sm text-slate-500">No tutors yet — add some above.</p></template>
-          <div class="space-y-2">
-            <template x-for="t in tutors" :key="'tm-'+t.id">
-              <div class="border rounded-xl p-3 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div class="font-semibold" x-text="t.name"></div>
-                  <div class="text-xs text-slate-600"><span class="chip mr-1" x-for="s in t.subjects" x-text="s"></span></div>
-                </div>
-                <div class="flex gap-2">
-                  <button class="px-3 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200" @click="openEditTutor(t)">Edit</button>
-                  <button class="px-3 py-1 rounded-lg text-xs bg-rose-600 text-white" @click="deleteTutor(t)">Delete</button>
-                </div>
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <!-- EDIT TUTOR MODAL -->
-        <div x-show="showEditTutor" x-cloak class="fixed inset-0 bg-black/30 flex items-center justify-center p-4">
-          <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <h3 class="text-lg font-semibold">Edit tutor</h3>
-            <input class="mt-3 w-full border rounded-lg p-2" placeholder="Tutor name" x-model="editTutorData.name" />
-            <p class="text-sm text-slate-600 mt-3 mb-2">Subjects</p>
-            <div class="flex flex-wrap gap-2">
-              <template x-for="s in subjects" :key="'editpick-'+s">
-                <label class="chip cursor-pointer">
-                  <input class="mr-1" type="checkbox" :value="s" x-model="editTutorData.subjects">
-                  <span x-text="s"></span>
-                </label>
-              </template>
-            </div>
-            <div class="mt-4 flex justify-end gap-2">
-              <button class="px-3 py-2 rounded-lg bg-slate-100" @click="closeEditTutor()">Cancel</button>
-              <button class="px-3 py-2 rounded-lg bg-indigo-600 text-white" @click="saveEditTutor()">Save</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- EXPORT & ATTENDANCE -->
-        <div x-show="isAdmin()" class="mt-6 grid md:grid-cols-3 gap-4">
           <div>
             <h3 class="font-medium mb-2">Export</h3>
             <button class="w-full px-3 py-2 rounded-lg bg-emerald-600 text-white" @click="exportCSV()">Export CSV</button>
-            <p class="text-xs text-slate-500 mt-2">Includes subjects, tutors, slots, and attendance records.</p>
+            <p class="text-xs text-slate-500 mt-2">Includes tutors, slots, and attendance records.</p>
           </div>
-          <div class="md:col-span-2">
-            <h3 class="font-medium mb-2">Attendance / No‑shows</h3>
-            <div class="overflow-x-auto">
-              <table class="w-full text-left">
-                <thead>
-                  <tr class="text-sm text-slate-500">
-                    <th class="p-2">When</th>
-                    <th class="p-2">Tutor</th>
-                    <th class="p-2">Student</th>
-                    <th class="p-2">Code</th>
-                    <th class="p-2">Status</th>
-                    <th class="p-2">Action</th>
+        </div>
+
+        <div x-show="isAdmin()" class="mt-6">
+          <h3 class="font-medium mb-2">Attendance / No‑shows</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="text-sm text-slate-500">
+                  <th class="p-2">When</th>
+                  <th class="p-2">Tutor</th>
+                  <th class="p-2">Student</th>
+                  <th class="p-2">Code</th>
+                  <th class="p-2">Status</th>
+                  <th class="p-2">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="r in bookings" :key="r.code">
+                  <tr class="border-t">
+                    <td class="p-2 text-sm" x-text="r.day + ' ' + r.time"></td>
+                    <td class="p-2 text-sm" x-text="r.tutor"></td>
+                    <td class="p-2 text-sm" x-text="r.student"></td>
+                    <td class="p-2 text-xs font-mono" x-text="r.code"></td>
+                    <td class="p-2 text-sm">
+                      <span class="px-2 py-1 rounded-full text-xs" :class="{'bg-emerald-100 text-emerald-700': r.status==='attended', 'bg-rose-100 text-rose-700': r.status==='no-show', 'bg-slate-100 text-slate-700': r.status==='booked'}" x-text="r.status"></span>
+                    </td>
+                    <td class="p-2">
+                      <button class="text-xs px-2 py-1 rounded bg-emerald-600 text-white mr-1" @click="setStatus(r,'attended')">Attended</button>
+                      <button class="text-xs px-2 py-1 rounded bg-rose-600 text-white" @click="setStatus(r,'no-show')">No‑show</button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  <template x-for="r in bookings" :key="r.code">
-                    <tr class="border-t">
-                      <td class="p-2 text-sm" x-text="r.day + ' ' + r.time"></td>
-                      <td class="p-2 text-sm" x-text="r.tutor"></td>
-                      <td class="p-2 text-sm" x-text="r.student"></td>
-                      <td class="p-2 text-xs font-mono" x-text="r.code"></td>
-                      <td class="p-2 text-sm">
-                        <span class="px-2 py-1 rounded-full text-xs" :class="{'bg-emerald-100 text-emerald-700': r.status==='attended', 'bg-rose-100 text-rose-700': r.status==='no-show', 'bg-slate-100 text-slate-700': r.status==='booked'}" x-text="r.status"></span>
-                      </td>
-                      <td class="p-2">
-                        <button class="text-xs px-2 py-1 rounded bg-emerald-600 text-white mr-1" @click="setStatus(r,'attended')">Attended</button>
-                        <button class="text-xs px-2 py-1 rounded bg-rose-600 text-white" @click="setStatus(r,'no-show')">No‑show</button>
-                      </td>
-                    </tr>
-                  </template>
-                </tbody>
-              </table>
-            </div>
+                </template>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -318,23 +248,20 @@
     function tutoringApp() {
       return {
         activeTab: 'find',
-        subjects: [], // now editable in Admin
+        subjects: ['Math', 'Pre‑Calc', 'Calculus', 'Chemistry', 'Physics', 'Biology', 'English', 'Social Studies', 'French'],
         days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-        times: ['8:00‑8:30', '8:30‑9:00', 'Lunch', '3:10‑3:40', '3:40‑4:10'],
+        times: ['8:00‑8:30', '8:30‑9:00', 'Lunch', '3:10‑3:40', '3:40‑4:10', 'block 1', 'block 2', 'block 3', 'block 4', 'block 5', 'block 6', 'block 7', 'block 8'],
         filters: { subject: '', day: '', time: '' },
 
         tutors: [],
         slots: [],
         bookings: [],
 
-        // Admin state
+        // Admin
         adminPass: '',
-        ADMIN_KEY: 'handsworth2025',
-        newSubject: '',
-        newTutor: { name: '', subjectsPick: [] },
+        ADMIN_KEY: 'handsworth2025', // change this
+        newTutor: { name: '', subjects: '' },
         newSlot: { tutorId: '', day: '', time: '', room: '' },
-        showEditTutor: false,
-        editTutorData: { id: null, name: '', subjects: [] },
 
         // Booking modal
         showBook: false,
@@ -349,30 +276,30 @@
         qrSlot: null,
 
         init() {
+          // Load from localStorage or seed with sample data
           const stored = JSON.parse(localStorage.getItem('peerTutoringData') || '{}');
-          this.subjects = stored.subjects || ['Math','Pre‑Calc','Chemistry','Physics','Biology','English','Social Studies'];
           this.tutors = stored.tutors || [
             { id: 1, name: 'Alice Chen', subjects: ['Math','Pre‑Calc'] },
             { id: 2, name: 'Ravi Patel', subjects: ['Chemistry','Physics'] },
             { id: 3, name: 'Sara Kim', subjects: ['Biology','Chemistry'] },
-            { id: 4, name: 'Leo Martinez', subjects: ['English','Social Studies'] }
+            { id: 4, name: 'Leo Martinez', subjects: ['English','Biology'] }
           ];
           this.slots = stored.slots || [
             { id: 's1', tutorId: 1, tutor: 'Alice Chen', subject: ['Math','Pre‑Calc'], day: 'Mon', time: 'Lunch', room: 'Library BR‑2' },
             { id: 's2', tutorId: 2, tutor: 'Ravi Patel', subject: ['Chemistry','Physics'], day: 'Tue', time: '3:10‑3:40', room: 'Room 204' },
             { id: 's3', tutorId: 3, tutor: 'Sara Kim', subject: ['Biology','Chemistry'], day: 'Thu', time: 'Lunch', room: 'Library BR‑1' },
-            { id: 's4', tutorId: 4, tutor: 'Leo Martinez', subject: ['English','Social Studies'], day: 'Fri', time: '3:40‑4:10', room: 'Room 110' }
+            { id: 's4', tutorId: 4, tutor: 'Leo Martinez', subject: ['English'], day: 'Fri', time: '3:40‑4:10', room: 'Room 110' }
           ];
           this.bookings = stored.bookings || [];
           this.persist();
         },
 
         persist() {
-          localStorage.setItem('peerTutoringData', JSON.stringify({ subjects: this.subjects, tutors: this.tutors, slots: this.slots, bookings: this.bookings }));
+          localStorage.setItem('peerTutoringData', JSON.stringify({ tutors: this.tutors, slots: this.slots, bookings: this.bookings }));
         },
 
-        // Filters & helpers
         clearFilters(){ this.filters={subject:'',day:'',time:''}; },
+
         filteredSlots(){
           return this.slots.filter(s =>
             (!this.filters.subject || s.subject.includes(this.filters.subject)) &&
@@ -380,9 +307,9 @@
             (!this.filters.time || s.time===this.filters.time)
           );
         },
+
         slotsFor(d,t){ return this.slots.filter(s => s.day===d && s.time===t); },
 
-        // Booking
         openBook(slot){ this.bookSlot = slot; this.showBook = true; this.confirmation = {}; },
         closeBook(){ this.showBook=false; this.bookSlot=null; this.studentName=''; this.studentEmail=''; this.emailOptIn=true; this.confirmation={}; },
         confirmBook(){
@@ -392,6 +319,7 @@
           this.bookings.push(rec);
           this.persist();
           this.confirmation = { code };
+          // For real email: connect this to Google Apps Script Web App endpoint.
         },
 
         viewQR(slot){
@@ -399,59 +327,20 @@
           this.$nextTick(() => {
             const el = document.getElementById('qrcode');
             el.innerHTML = '';
+            // Encode slot id + time for simple check‑in URL (front‑end demo)
             const payload = JSON.stringify({ slot: slot.id, when: slot.day + ' ' + slot.time });
             new QRCode(el, { text: payload, width: 192, height: 192 });
           });
         },
 
-        // Admin: auth
+        // Admin helpers
         isAdmin(){ return this.adminPass === this.ADMIN_KEY; },
-
-        // Admin: subjects
-        addSubject(){
-          const s = (this.newSubject||'').trim();
-          if(!s) return;
-          if(!this.subjects.includes(s)) this.subjects.push(s);
-          this.newSubject='';
-          this.persist();
-        },
-        removeSubject(s){
-          this.subjects = this.subjects.filter(x => x!==s);
-          // Also clean tutor subject tags and slot subject tags
-          this.tutors.forEach(t => t.subjects = t.subjects.filter(x=>x!==s));
-          this.slots.forEach(sl => sl.subject = sl.subject.filter(x=>x!==s));
-          this.persist();
-        },
-
-        // Admin: tutors & slots
-        openEditTutor(t){
-          this.editTutorData = { id: t.id, name: t.name, subjects: [...t.subjects] };
-          this.showEditTutor = true;
-        },
-        closeEditTutor(){ this.showEditTutor=false; this.editTutorData={ id:null, name:'', subjects:[] }; },
-        saveEditTutor(){
-          const { id, name, subjects } = this.editTutorData;
-          const idx = this.tutors.findIndex(tt=>tt.id===id);
-          if(idx===-1) return;
-          this.tutors[idx].name = name.trim() || this.tutors[idx].name;
-          this.tutors[idx].subjects = subjects.length? [...subjects]: this.tutors[idx].subjects;
-          // propagate to existing slots for this tutor
-          this.slots.forEach(s=>{ if(s.tutorId===id){ s.tutor = this.tutors[idx].name; s.subject = [...this.tutors[idx].subjects]; }});
-          this.persist();
-          this.closeEditTutor();
-        },
-        deleteTutor(t){
-          if(!confirm('Delete '+t.name+' and remove their slots?')) return;
-          this.tutors = this.tutors.filter(x=>x.id!==t.id);
-          this.slots = this.slots.filter(s=> s.tutorId!==t.id);
-          this.persist();
-        },
         addTutor(){
           if(!this.newTutor.name) return alert('Tutor name required');
-          if(this.newTutor.subjectsPick.length===0) return alert('Pick at least one subject');
           const id = (this.tutors.at(-1)?.id || 0) + 1;
-          this.tutors.push({ id, name: this.newTutor.name, subjects: [...this.newTutor.subjectsPick] });
-          this.newTutor = { name: '', subjectsPick: [] };
+          const subjects = this.newTutor.subjects.split(',').map(s=>s.trim()).filter(Boolean);
+          this.tutors.push({ id, name: this.newTutor.name, subjects });
+          this.newTutor = { name: '', subjects: '' };
           this.persist();
         },
         addSlot(){
@@ -466,12 +355,10 @@
         exportCSV(){
           const rows = [];
           rows.push(['Type','ID/Code','Tutor','Subjects','Day','Time','Room','Student','Email','Status']);
-          this.subjects.forEach(s=> rows.push(['subject', '', '', s, '', '', '', '', '', '']));
           this.tutors.forEach(t=> rows.push(['tutor', t.id, t.name, t.subjects.join('|'), '', '', '', '', '', '']));
           this.slots.forEach(s=> rows.push(['slot', s.id, s.tutor, s.subject.join('|'), s.day, s.time, s.room, '', '', '']));
           this.bookings.forEach(b=> rows.push(['booking', b.code, b.tutor, '', b.day, b.time, '', b.student, b.email, b.status]));
-          const csv = rows.map(r=> r.map(v=> '"'+String(v).replaceAll('"','""')+'"').join(',')).join('
-');
+          const csv = rows.map(r=> r.map(v=> '"'+String(v).replaceAll('"','""')+'"').join(',')).join('\n');
           const blob = new Blob([csv], {type:'text/csv'});
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
